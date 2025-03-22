@@ -16,15 +16,14 @@ const oauth2Client = new google.auth.OAuth2(
   "https://developers.google.com/oauthplayground"
 );
 
-// Set the Refresh Token
 oauth2Client.setCredentials({ refresh_token: process.env.REFRESH_TOKEN });
 
 async function sendEmail(to, message) {
   try {
-    // ✅ Get a new Access Token dynamically (DO NOT HARDCODE IT)
-    const accessToken = await oauth2Client.getAccessToken();
+    // Manually fetch access token to log the raw response
+    const tokenResponse = await oauth2Client.getAccessToken();
+    console.log('Access Token:', tokenResponse.token);
 
-    // ✅ Setup Nodemailer transporter
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -33,11 +32,10 @@ async function sendEmail(to, message) {
         clientId: process.env.CLIENT_ID,
         clientSecret: process.env.CLIENT_SECRET,
         refreshToken: process.env.REFRESH_TOKEN,
-        accessToken: accessToken.token, // Use the dynamically fetched access token
+        accessToken: tokenResponse.token,
       },
     });
 
-    // ✅ Setup email options
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: to,
@@ -45,16 +43,18 @@ async function sendEmail(to, message) {
       text: message,
     };
 
-    // ✅ Send the email
-    await transporter.sendMail(mailOptions);
+    const result = await transporter.sendMail(mailOptions);
+    console.log('Email sent:', result);
     return { success: true, message: "Message sent successfully." };
   } catch (error) {
-    console.error("❌ Error sending email:", error);
-    return { success: false, message: "Failed to send email.", error };
+    console.error("❌ Raw Error:", error);
+    if (error.response) {
+      console.error("❌ Token Endpoint Response:", JSON.stringify(error.response.data, null, 2));
+    }
+    return { success: false, message: "Failed to send email.", error: error.response?.data || error.message };
   }
 }
 
-// ✅ API Route to Send Email
 app.post('/send-message', async (req, res) => {
   const { email, message } = req.body;
 
